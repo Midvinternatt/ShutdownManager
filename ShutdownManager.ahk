@@ -19,7 +19,6 @@ ShutDownManager()
 
 ShutDownManager() {
     Settings.Load()
-    ShutdownHandler.Init()
     
 	A_IconTip := TRAY_TITLE
 	TraySetIcon(TRAY_ICON)
@@ -32,7 +31,7 @@ ShutDownManager() {
     ; ShutdownMenu.Disable("Choose delay") ; Not implemented
 
 	A_TrayMenu.Add("Shutdown", ShutdownMenu)
-    A_TrayMenu.Add("Auto Shutdown: " Settings.AutoShutdownTimeString, MenuEvent.Dummy.Bind(MenuEvent))
+    A_TrayMenu.Add("Auto Shutdown: " Settings.AutoShutdownTimeString, MenuEvent.CheckAutoShutdown.Bind(MenuEvent))
 	if(Settings.AutoShutdown)
 		A_TrayMenu.Check("Auto Shutdown: " Settings.AutoShutdownTimeString)
     A_TrayMenu.Add("Cancel shutdown", MenuEvent.CancelShutdown.Bind(MenuEvent))
@@ -42,6 +41,11 @@ ShutDownManager() {
 	A_TrayMenu.Add("Open settings", MenuEvent.OpenSettings.Bind(MenuEvent))
 	A_TrayMenu.Add()
 	A_TrayMenu.Add("Exit", MenuEvent.Exit.Bind(MenuEvent))
+
+    ; ((((24 + Goal_Hour - A_Hour) * 60 + Goal_Min - A_Min) * 60 + Goal_Sec - A_Sec) * 1000 + Goal_MSec - A_MSec
+    ; SetTimer(ShutdownHandler._timer, Mod((((24 + Settings.AutoShutdownTime - A_Hour) * 60 - A_Min) * 60 - A_Sec) * 1000 - A_MSec, 86400000))
+    ShutdownHandler.StartTimer(Mod((((24 + Settings.AutoShutdownTime - A_Hour) * 60 - A_Min) * 60 - A_Sec) * 1000 - A_MSec, 86400000))
+    Settings.Save()
 	
 	; A_TrayMenu.Add("Notification message", MenuEvent.Dummy.Bind(MenuEvent))
 	; if(Settings.MessageNotification)
@@ -56,46 +60,33 @@ class ShutdownHandler {
     static _warnTimer := ObjBindMethod(ShutdownHandler, "IssueWarning")
     static _executeTimer := ObjBindMethod(ShutdownHandler, "Execute")
 
-    static Init() {
-        ; ((((24 + Goal_Hour - A_Hour) * 60 + Goal_Min - A_Min) * 60 + Goal_Sec - A_Sec) * 1000 + Goal_MSec - A_MSec
-        ; SetTimer(ShutdownHandler._timer, Mod((((24 + Settings.AutoShutdownTime - A_Hour) * 60 - A_Min) * 60 - A_Sec) * 1000 - A_MSec, 86400000))
-        ShutdownHandler.StartTimer(Mod((((24 + Settings.AutoShutdownTime - A_Hour) * 60 - A_Min) * 60 - A_Sec) * 1000 - A_MSec, 86400000))
-    }
     static StartTimer(delay, message := "") {
         A_TrayMenu.Enable("Cancel shutdown")
-        
         SetTimer(ShutdownHandler._warnTimer, 0)
         SetTimer(ShutdownHandler._executeTimer, 0)
         SetTimer(ShutdownHandler._warnTimer, delay)
-        
         if(message != "")
             Notification(message)
     }
     static IssueWarning() {
         A_TrayMenu.Enable("Cancel shutdown")
-
         SetTimer(ShutdownHandler._warnTimer, 0)
         SetTimer(ShutdownHandler._executeTimer, 0)
         SetTimer(ShutdownHandler._executeTimer, 5 * 60 * 1000)
         Log("Issued 5 minute warning")
-
         MsgBox("Computer will shutdown in 5 minutes",,"T295")
     }
     static Cancel(message := "") {
         A_TrayMenu.Disable("Cancel shutdown")
-
         SetTimer(ShutdownHandler._warnTimer, 0)
         SetTimer(ShutdownHandler._executeTimer, 0)
         Log("Canceled scheduled shutdown")
-
         if(message != "")
             Notification(message)
     }
     static Execute() {
         SetTimer(ShutdownHandler._executeTimer, 0)
         Log("Computer shutting down")
-
-        ; Shutdown(8)
         DllCall("PowrProf\SetSuspendState", "Int", 1, "Int", 0, "Int", 0)
     }
 }
@@ -121,9 +112,9 @@ class MenuEvent {
             }
         }
     }
-    ; static CheckAutoShutdown(*) {
+    static CheckAutoShutdown(*) {
 
-    ; }
+    }
     static OpenSettings(*) {
         Settings.Open()
     }
@@ -141,6 +132,12 @@ class Settings {
 		file.Close()
 		Settings._data := JSON_Load(data)
     }
+    static Save() {
+        file := FileOpen(SETTINGS_FILEPATH, "w")
+        data := JSON_Dump(Settings._data, 4)
+        file.Write(data)
+        file.Close()
+    }
     static Open() {
 		RunWait("notepad.exe " SETTINGS_FILEPATH,,, &processId)
 		WinWaitClose("ahk_pid " processId)
@@ -148,14 +145,11 @@ class Settings {
 		Reload()
     }
     static AutoShutdown {
-        get {
-			return Settings._data["autoShutdown"]
-		}
+        get => Settings._data["autoShutdown"]
+        set => Settings._data["autoShutdown"] := value
     }
     static AutoShutdownTime {
-        get {
-            return Floor(Settings._data["autoShutdownTime"]) + Round(((Settings._data["autoShutdownTime"]) - Floor(Settings._data["autoShutdownTime"])) / 0.6, 2)
-		}
+        get => Floor(Settings._data["autoShutdownTime"]) + Round(((Settings._data["autoShutdownTime"]) - Floor(Settings._data["autoShutdownTime"])) / 0.6, 2)
     }
     static AutoShutdownTimeString {
         get {
@@ -164,7 +158,6 @@ class Settings {
                 result .= "0"
             result .= Floor(Settings._data["autoShutdownTime"]) ":"
             result .= SubStr(Round(Settings._data["autoShutdownTime"] - Floor(Settings._data["autoShutdownTime"]), 2), 3)
-
             return result
 		}
     }
