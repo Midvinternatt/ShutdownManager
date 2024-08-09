@@ -11,8 +11,6 @@ TRAY_TITLE := "Shutdown Manager"
 TRAY_ICON := "trayicon.ico"
 SETTINGS_FILEPATH := "settings.json"
 
-; Debug.Start()
-
 ShutdownMenu := Menu()
 
 ShutDownManager()
@@ -24,9 +22,9 @@ ShutDownManager() {
 	TraySetIcon(TRAY_ICON)
 	A_TrayMenu.Delete()
 
-    ShutdownMenu.Add("Delay 1 hr", MenuEvent.DelayOneHour.Bind(MenuEvent))
-    ShutdownMenu.Add("Delay 2 hr", MenuEvent.DelayTwoHours.Bind(MenuEvent))
-    ShutdownMenu.Add("Delay 3 hr", MenuEvent.DelayThreeHours.Bind(MenuEvent))
+    ShutdownMenu.Add("Delay 1 hr", MenuEvent.DelayHours.Bind(1))
+    ShutdownMenu.Add("Delay 2 hrs", MenuEvent.DelayHours.Bind(2))
+    ShutdownMenu.Add("Delay 3 hrs", MenuEvent.DelayHours.Bind(3))
     ShutdownMenu.Add("Choose delay", MenuEvent.DelayInputTime.Bind(MenuEvent))
 
 	A_TrayMenu.Add("Shutdown", ShutdownMenu)
@@ -40,9 +38,8 @@ ShutDownManager() {
 	A_TrayMenu.Add()
 	A_TrayMenu.Add("Exit", MenuEvent.Exit.Bind(MenuEvent))
 
-    ; ((((24 + Goal_Hour - A_Hour) * 60 + Goal_Min - A_Min) * 60 + Goal_Sec - A_Sec) * 1000 + Goal_MSec - A_MSec
-    ; SetTimer(ShutdownHandler._timer, Mod((((24 + Settings.AutoShutdownTime - A_Hour) * 60 - A_Min) * 60 - A_Sec) * 1000 - A_MSec, 86400000))
-    ShutdownHandler.StartTimer(Mod((((24 + Settings.AutoShutdownTime - A_Hour) * 60 - A_Min) * 60 - A_Sec) * 1000 - A_MSec, 86400000))
+    timeUntilAutoshutdown := Mod((((24 + Settings.AutoShutdownTime - A_Hour) * 60 - A_Min) * 60 - A_Sec) * 1000 - A_MSec, 86400000)
+    ShutdownHandler.StartTimer(timeUntilAutoshutdown)
     A_TrayMenu.Disable("Cancel shutdown")
 }
 
@@ -85,14 +82,8 @@ class MenuEvent {
     static CancelShutdown(*) {
         ShutdownHandler.Cancel("Scheduled shutdown canceled")
     }
-    static DelayOneHour(*) {
-        ShutdownHandler.StartTimer(1 * 3600 * 1000, "Computer will shutdown in 1 hr")
-    }
-    static DelayTwoHours(*) {
-        ShutdownHandler.StartTimer(2 * 3600 * 1000, "Computer will shutdown in 2 hrs")
-    }
-    static DelayThreeHours(*) {
-        ShutdownHandler.StartTimer(3 * 3600 * 1000, "Computer will shutdown in 3 hrs")
+    static DelayHours(menuItem, hours, menuObj) {
+        ShutdownHandler.StartTimer(hours * 3600 * 1000, "Computer will shutdown in " (hours>1?hours " hrs":hours " hr"))
     }
     static DelayInputTime(*) {
         inputResult := InputBox("Minutes until shutdown", TRAY_TITLE, "W200 H100")
@@ -117,21 +108,31 @@ class MenuEvent {
 
 class Settings {
     static Load() {
-        file := FileOpen(SETTINGS_FILEPATH, "r")
-		data := file.Read()
-		file.Close()
-		Settings._data := JSON_Load(data)
+        try {
+            file := FileOpen(SETTINGS_FILEPATH, "r")
+            data := file.Read()
+            file.Close()
+            Settings._data := JSON_Load(data)
+        }
+        catch {
+            MsgBox("Failed to load settings, exiting program")
+            ExitApp()
+        }
     }
     static Save() {
-        file := FileOpen(SETTINGS_FILEPATH, "w")
-        data := JSON_Dump(Settings._data, 4)
-        file.Write(data)
-        file.Close()
+        try {
+            file := FileOpen(SETTINGS_FILEPATH, "w")
+            data := JSON_Dump(Settings._data, 4)
+            file.Write(data)
+            file.Close()
+        }
+        catch {
+            MsgBox("Failed to save settings")
+        }
     }
     static Open() {
 		RunWait("notepad.exe " SETTINGS_FILEPATH,,, &processId)
 		WinWaitClose("ahk_pid " processId)
-		TrayTip("Updated settings", TRAY_TITLE)
 		Reload()
     }
     static AutoShutdown {
