@@ -23,18 +23,25 @@ ShutDownManager() {
     
 	A_IconTip := TRAY_TITLE
 	TraySetIcon(TRAY_ICON)
+	A_TrayMenu.Delete()
 
-    ShutdownMenu.Add("Cancel shutdown", MenuEvent.CancelShutdown.Bind(MenuEvent))
     ShutdownMenu.Add("Delay 1 hr", MenuEvent.DelayOneHour.Bind(MenuEvent))
     ShutdownMenu.Add("Delay 2 hr", MenuEvent.DelayTwoHours.Bind(MenuEvent))
     ShutdownMenu.Add("Delay 3 hr", MenuEvent.DelayThreeHours.Bind(MenuEvent))
     ShutdownMenu.Add("Choose delay", MenuEvent.DelayInputTime.Bind(MenuEvent))
-    ShutdownMenu.Disable("Cancel shutdown")
-    ShutdownMenu.Disable("Choose delay") ; Not implemented
-
-	A_TrayMenu.Delete()
+    ; ShutdownMenu.Disable("Choose delay") ; Not implemented
 
 	A_TrayMenu.Add("Shutdown", ShutdownMenu)
+    A_TrayMenu.Add("Auto Shutdown: " Settings.AutoShutdownTimeString, MenuEvent.Dummy.Bind(MenuEvent))
+	if(Settings.AutoShutdown)
+		A_TrayMenu.Check("Auto Shutdown: " Settings.AutoShutdownTimeString)
+    A_TrayMenu.Add("Cancel shutdown", MenuEvent.CancelShutdown.Bind(MenuEvent))
+    A_TrayMenu.Disable("Cancel shutdown")
+
+	A_TrayMenu.Add()
+	A_TrayMenu.Add("Open settings", MenuEvent.OpenSettings.Bind(MenuEvent))
+	A_TrayMenu.Add()
+	A_TrayMenu.Add("Exit", MenuEvent.Exit.Bind(MenuEvent))
 	
 	; A_TrayMenu.Add("Notification message", MenuEvent.Dummy.Bind(MenuEvent))
 	; if(Settings.MessageNotification)
@@ -43,15 +50,6 @@ ShutDownManager() {
 	; A_TrayMenu.Add("Notification audio", MenuEvent.Dummy.Bind(MenuEvent))
 	; if(Settings.AudioNotification)
 	; 	A_TrayMenu.Check("Notification audio")
-
-    A_TrayMenu.Add("Auto Shutdown: " Settings.AutoShutdownTimeString, MenuEvent.Dummy.Bind(MenuEvent))
-	if(Settings.AutoShutdown)
-		A_TrayMenu.Check("Auto Shutdown: " Settings.AutoShutdownTimeString)
-
-	A_TrayMenu.Add()
-	A_TrayMenu.Add("Open settings", MenuEvent.OpenSettings.Bind(MenuEvent))
-	A_TrayMenu.Add()
-	A_TrayMenu.Add("Exit", MenuEvent.Exit.Bind(MenuEvent))
 }
 
 class ShutdownHandler {
@@ -63,37 +61,39 @@ class ShutdownHandler {
         ; SetTimer(ShutdownHandler._timer, Mod((((24 + Settings.AutoShutdownTime - A_Hour) * 60 - A_Min) * 60 - A_Sec) * 1000 - A_MSec, 86400000))
         ShutdownHandler.StartTimer(Mod((((24 + Settings.AutoShutdownTime - A_Hour) * 60 - A_Min) * 60 - A_Sec) * 1000 - A_MSec, 86400000))
     }
-    static StartTimer(delay) {
+    static StartTimer(delay, message := "") {
+        A_TrayMenu.Enable("Cancel shutdown")
+        
         SetTimer(ShutdownHandler._warnTimer, 0)
         SetTimer(ShutdownHandler._executeTimer, 0)
         SetTimer(ShutdownHandler._warnTimer, delay)
+        
+        if(message != "")
+            Notification(message)
     }
     static IssueWarning() {
+        A_TrayMenu.Enable("Cancel shutdown")
+
         SetTimer(ShutdownHandler._warnTimer, 0)
         SetTimer(ShutdownHandler._executeTimer, 0)
         SetTimer(ShutdownHandler._executeTimer, 5 * 60 * 1000)
-        MsgBox("Computer will shutdown in 5 minutes",,"T295")
         Log("Issued 5 minute warning")
-        ShutdownMenu.Enable("Cancel shutdown")
 
+        MsgBox("Computer will shutdown in 5 minutes",,"T295")
     }
-    static Cancel() {
+    static Cancel(message := "") {
+        A_TrayMenu.Disable("Cancel shutdown")
+
         SetTimer(ShutdownHandler._warnTimer, 0)
         SetTimer(ShutdownHandler._executeTimer, 0)
         Log("Canceled scheduled shutdown")
+
+        if(message != "")
+            Notification(message)
     }
     static Execute() {
         SetTimer(ShutdownHandler._executeTimer, 0)
         Log("Computer shutting down")
-        ; MsgBox("Computer shutting down")
-
-        ; if(WinExist("ahk_exe firefox.exe")) {
-        ;     Log("Firefox open")
-            ; WinWaitClose("ahk_exe firefox.exe")
-        ;     Log("firefox exited")
-        ; }
-
-        ; Log("Shutting")
 
         ; Shutdown(8)
         DllCall("PowrProf\SetSuspendState", "Int", 1, "Int", 0, "Int", 0)
@@ -102,27 +102,24 @@ class ShutdownHandler {
 
 class MenuEvent {
     static CancelShutdown(*) {
-        ShutdownMenu.Disable("Cancel shutdown")
-        ShutdownHandler.Cancel()
-        Notification("Scheduled shutdown canceled")
+        ShutdownHandler.Cancel("Scheduled shutdown canceled")
     }
     static DelayOneHour(*) {
-        ShutdownMenu.Enable("Cancel shutdown")
-        ShutdownHandler.StartTimer(1 * 3600 * 1000)
-        Notification("Computer will shutdown in 1 hr")
+        ShutdownHandler.StartTimer(1 * 3600 * 1000, "Computer will shutdown in 1 hr")
     }
     static DelayTwoHours(*) {
-        ShutdownMenu.Enable("Cancel shutdown")
-        ShutdownHandler.StartTimer(2 * 3600 * 1000)
-        Notification("Computer will shutdown in 2 hrs")
+        ShutdownHandler.StartTimer(2 * 3600 * 1000, "Computer will shutdown in 2 hrs")
     }
     static DelayThreeHours(*) {
-        ShutdownMenu.Enable("Cancel shutdown")
-        ShutdownHandler.StartTimer(3 * 3600 * 1000)
-        Notification("Computer will shutdown in 3 hrs")
+        ShutdownHandler.StartTimer(3 * 3600 * 1000, "Computer will shutdown in 3 hrs")
     }
     static DelayInputTime(*) {
-        Debug("Custom time event")
+        inputResult := InputBox("Minutes until shutdown", TRAY_TITLE, "W200 H100")
+        if(inputResult.Result == "OK") {
+            if(IsInteger(inputResult.Value)) {
+                ShutdownHandler.StartTimer(inputResult.Value * 60 * 1000, "Computer will shutdown in " inputResult.Value " minutes")
+            }
+        }
     }
     ; static CheckAutoShutdown(*) {
 
@@ -133,7 +130,6 @@ class MenuEvent {
     static Dummy(*) {
     }
     static Exit(*) {
-        ; Debug("Exit event")
         ExitApp()
     }
 }
