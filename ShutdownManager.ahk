@@ -28,14 +28,12 @@ ShutDownManager() {
     ShutdownMenu.Add("Delay 2 hr", MenuEvent.DelayTwoHours.Bind(MenuEvent))
     ShutdownMenu.Add("Delay 3 hr", MenuEvent.DelayThreeHours.Bind(MenuEvent))
     ShutdownMenu.Add("Choose delay", MenuEvent.DelayInputTime.Bind(MenuEvent))
-    ; ShutdownMenu.Disable("Choose delay") ; Not implemented
 
 	A_TrayMenu.Add("Shutdown", ShutdownMenu)
     A_TrayMenu.Add("Auto Shutdown: " Settings.AutoShutdownTimeString, MenuEvent.CheckAutoShutdown.Bind(MenuEvent))
 	if(Settings.AutoShutdown)
 		A_TrayMenu.Check("Auto Shutdown: " Settings.AutoShutdownTimeString)
     A_TrayMenu.Add("Cancel shutdown", MenuEvent.CancelShutdown.Bind(MenuEvent))
-    A_TrayMenu.Disable("Cancel shutdown")
 
 	A_TrayMenu.Add()
 	A_TrayMenu.Add("Open settings", MenuEvent.OpenSettings.Bind(MenuEvent))
@@ -45,15 +43,7 @@ ShutDownManager() {
     ; ((((24 + Goal_Hour - A_Hour) * 60 + Goal_Min - A_Min) * 60 + Goal_Sec - A_Sec) * 1000 + Goal_MSec - A_MSec
     ; SetTimer(ShutdownHandler._timer, Mod((((24 + Settings.AutoShutdownTime - A_Hour) * 60 - A_Min) * 60 - A_Sec) * 1000 - A_MSec, 86400000))
     ShutdownHandler.StartTimer(Mod((((24 + Settings.AutoShutdownTime - A_Hour) * 60 - A_Min) * 60 - A_Sec) * 1000 - A_MSec, 86400000))
-    Settings.Save()
-	
-	; A_TrayMenu.Add("Notification message", MenuEvent.Dummy.Bind(MenuEvent))
-	; if(Settings.MessageNotification)
-	; 	A_TrayMenu.Check("Notification message")
-	
-	; A_TrayMenu.Add("Notification audio", MenuEvent.Dummy.Bind(MenuEvent))
-	; if(Settings.AudioNotification)
-	; 	A_TrayMenu.Check("Notification audio")
+    A_TrayMenu.Disable("Cancel shutdown")
 }
 
 class ShutdownHandler {
@@ -113,12 +103,12 @@ class MenuEvent {
         }
     }
     static CheckAutoShutdown(*) {
-
+        Settings.AutoShutdown := not Settings.AutoShutdown
+        Settings.Save()
+        A_TrayMenu.ToggleCheck("Auto Shutdown: " Settings.AutoShutdownTimeString)
     }
     static OpenSettings(*) {
         Settings.Open()
-    }
-    static Dummy(*) {
     }
     static Exit(*) {
         ExitApp()
