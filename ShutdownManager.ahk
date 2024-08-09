@@ -17,6 +17,8 @@ ShutDownManager()
 
 ShutDownManager() {
     Settings.Load()
+    if(!Settings.LogActivity)
+        Log.Stop()
     
 	A_IconTip := TRAY_TITLE
 	TraySetIcon(TRAY_ICON)
@@ -134,6 +136,9 @@ class Settings {
 		RunWait("notepad.exe " SETTINGS_FILEPATH,,, &processId)
 		WinWaitClose("ahk_pid " processId)
 		Reload()
+    }
+    static LogActivity {
+        get => Settings._data["logActivity"]
     }
     static AutoShutdown {
         get => Settings._data["autoShutdown"]
