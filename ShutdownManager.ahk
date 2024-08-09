@@ -1,8 +1,7 @@
 #Requires AutoHotkey v2.0
 
-#Include Debug.ahk
-#Include Log.ahk
 #Include JSON.ahk
+#Include Log.ahk
 #Include Notification.ahk
 Persistent
 #SingleInstance Force
